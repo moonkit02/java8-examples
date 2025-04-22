@@ -20,6 +20,7 @@ public class VulnerableLegacyJava implements Serializable {
     public VulnerableLegacyJava() {
         this.creationDate = new Date();
         data.add("Initialized on " + dateFormat.format(creationDate));
+        String hexString = Integer.toHexString(byteValue);
     }
     
     // Unsafe deserialization (vulnerable to RCE if untrusted input)
