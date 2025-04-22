@@ -1,24 +1,48 @@
 import com.google.flatbuffers.FlatBufferBuilder;
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInputStream;
+import java.io.Serializable;
+import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Vector;
-import java.beans.Transient;
 
-public class LegacyFlatBuffersExample {
-    // Legacy collection (Vector is outdated, prefer ArrayList)
-    private Vector<String> messages = new Vector<>();
+public class VulnerableLegacyJava implements Serializable {
+    private static final long serialVersionUID = 1L;
     
-    // Legacy Date class (prefer java.time API in modern Java)
+    // Legacy collection (Vector is deprecated, prefer ArrayList)
+    private Vector<String> data = new Vector<>();
+    
+    // Legacy Date with SimpleDateFormat (not thread-safe)
     private Date creationDate;
+    private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
     
-    // Constructor using StringBuffer (legacy, prefer StringBuilder)
-    public LegacyFlatBuffersExample() {
+    public VulnerableLegacyJava() {
         this.creationDate = new Date();
-        StringBuffer buffer = new StringBuffer();
-        buffer.append("Initialized at ").append(creationDate.toString());
-        messages.add(buffer.toString());
+        data.add("Initialized on " + dateFormat.format(creationDate));
     }
     
-    // Method using FlatBuffers to create a simple buffer
+    // Unsafe deserialization (vulnerable to RCE if untrusted input)
+    public Object unsafeDeserialize(byte[] input) throws Exception {
+        ByteArrayInputStream bis = new ByteArrayInputStream(input);
+        ObjectInputStream ois = new ObjectInputStream(bis);
+        Object result = ois.readObject();
+        ois.close();
+        return result;
+    }
+    
+    // Weak cryptography (MD5 is cryptographically broken)
+    public String computeHash(String input) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("MD5");
+        byte[] hash = digest.digest(input.getBytes());
+        StringBuffer hexString = new StringBuffer();
+        for (byte b : hash) {
+            hexString.append(Integer.toHexString(0xFF & b));
+        }
+        return hexString.toString();
+    }
+    
+    // Use FlatBuffers (vulnerable dependency)
     public byte[] createFlatBufferMessage(String message) {
         FlatBufferBuilder builder = new FlatBufferBuilder(1024);
         int messageOffset = builder.createString(message);
@@ -26,32 +50,46 @@ public class LegacyFlatBuffersExample {
         return builder.sizedByteArray();
     }
     
-    // Legacy method using Transient annotation (not inherently vulnerable but outdated)
-    @Transient
+    // Legacy date formatting (not thread-safe)
     public String getFormattedDate() {
-        return creationDate.toString();
+        return dateFormat.format(creationDate);
     }
     
-    // Add message to Vector
-    public void addMessage(String message) {
-        messages.add(message);
+    // Add data to Vector
+    public void addData(String item) {
+        data.add(item);
     }
     
-    // Get messages (exposing legacy Vector)
-    public Vector<String> getMessages() {
-        return messages;
+    // Expose legacy Vector
+    public Vector<String> getData() {
+        return data;
     }
     
     public static void main(String[] args) {
-        LegacyFlatBuffersExample example = new LegacyFlatBuffersExample();
-        example.addMessage("Test message");
-        
-        // Create a FlatBuffer
-        byte[] flatBuffer = example.createFlatBufferMessage("Hello, FlatBuffers!");
-        System.out.println("FlatBuffer created with size: " + flatBuffer.length);
-        
-        // Print legacy date and messages
-        System.out.println("Creation Date: " + example.getFormattedDate());
-        System.out.println("Messages: " + example.getMessages());
+        try {
+            VulnerableLegacyJava app = new VulnerableLegacyJava();
+            
+            // Use FlatBuffers
+            byte[] flatBuffer = app.createFlatBufferMessage("Hello, FlatBuffers!");
+            System.out.println("FlatBuffer size: " + flatBuffer.length);
+            
+            // Compute weak hash
+            String hash = app.computeHash("test");
+            System.out.println("MD5 Hash: " + hash);
+            
+            // Use legacy date
+            System.out.println("Date: " + app.getFormattedDate());
+            
+            // Add and print data
+            app.addData("Sample data");
+            System.out.println("Data: " + app.getData());
+            
+            // Simulate unsafe deserialization (DO NOT USE IN PRODUCTION)
+            // byte[] maliciousInput = ...; // Hypothetical malicious input
+            // app.unsafeDeserialize(maliciousInput);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
